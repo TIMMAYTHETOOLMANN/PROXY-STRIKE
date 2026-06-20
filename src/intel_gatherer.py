@@ -9,16 +9,17 @@ from typing import List, Dict
 from datetime import datetime
 
 class IntelGatherer:
-    def __init__(self, hyperbrowser, web_fetch, bucket_store):
-        self.hb = hyperbrowser
-        self.web = web_fetch
+    def __init__(self, hb_client, web_client, stealth_client, bucket_store):
+        self.hb = hb_client
+        self.web = web_client
+        self.stealth = stealth_client   # mcp-stealth-chrome
         self.store = bucket_store
         self.targets = []
 
     async def crawl(self) -> List[Dict]:
         """Execute full intelligence gathering pipeline"""
         tasks = [
-            self._scrape_token_sniffer(),
+            self._scrape_token_sniffer_stealth(),
             self._scrape_bscscan_unverified(),
             self._scrape_etherscan_proxies(),
             self._scrape_dune(),
@@ -35,36 +36,53 @@ class IntelGatherer:
         await self._persist(self.targets)
         return self.targets
 
-    async def _scrape_token_sniffer(self) -> List[Dict]:
-        """Pull high-risk tokens from Token Sniffer"""
+    async def _scrape_token_sniffer_stealth(self) -> List[Dict]:
+        """
+        Scrape Token Sniffer trending/high-risk tokens using Stealth Chrome MCP.
+        Uses fingerprint randomization and proxy chaining for anonymity.
+        """
+        targets = []
         try:
-            data = await self.hb.extract_structured_data(
+            # 1. Navigate to Token Sniffer trending page
+            nav_result = await self.stealth.navigate_stealth(
                 url="https://tokensniffer.com/tokens/trending?risk=high",
+                wait_until="networkidle",
+                randomize_fingerprint=True,
+                proxy_chain="residential"
+            )
+            print(f"[INTEL] Stealth navigate: {nav_result.get('status')}")
+
+            # 2. Extract structured data from the page
+            extracted = await self.stealth.extract_structured(
                 schema={
                     "type": "array",
                     "items": {
                         "type": "object",
                         "properties": {
-                            "address": {"type": "string"},
-                            "chain": {"type": "string"},
-                            "risk_tags": {"type": "array", "items": {"type": "string"}}
+                            "address": {"type": "string", "description": "Token contract address"},
+                            "name": {"type": "string"},
+                            "symbol": {"type": "string"},
+                            "risk_score": {"type": "integer"},
+                            "chain": {"type": "string"}
                         }
                     }
-                }
+                },
+                selector="table.token-table tbody tr"
             )
-            return [
-                {
-                    "address": t["address"],
-                    "chain": t["chain"],
+            for item in extracted.get("data", []):
+                targets.append({
+                    "address": item["address"],
+                    "chain": item.get("chain", "ethereum_mainnet"),
                     "source": "tokensniffer",
-                    "risk_tags": t["risk_tags"],
-                    "timestamp": datetime.utcnow().isoformat()
-                }
-                for t in data
-                if any(tag in t.get("risk_tags", []) for tag in ["proxy", "tax", "unverified", "mint"])
-            ]
+                    "risk_score": item.get("risk_score", 0),
+                    "metadata": {"name": item.get("name"), "symbol": item.get("symbol")}
+                })
+
+            print(f"[INTEL] Token Sniffer (stealth): {len(targets)} targets")
+            return targets
+
         except Exception as e:
-            print(f"Token Sniffer scrape failed: {e}")
+            print(f"[INTEL] Stealth scrape failed: {e}")
             return []
 
     async def _scrape_dune(self) -> List[Dict]:

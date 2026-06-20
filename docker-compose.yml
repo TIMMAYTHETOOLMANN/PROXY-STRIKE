@@ -1,47 +1,19 @@
-version: '3.9'
+version: "3.9"
 
 services:
-  proxy-strike:
+  recon:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: proxy-strike-redteam
+    container_name: proxy-strike-recon
+    network_mode: host
     environment:
-      - PYTHONUNBUFFERED=1
-      - MCP_SERVER_CONFIG=/app/config/mcp_servers.yaml
-      - REDTEAM_PROFILE=/app/config/redteam_profile.yaml
-    volumes:
-      - ./config:/app/config:ro
-      - ./contracts:/app/contracts:ro
-      - ./src:/app/src:ro
-      - ./dune:/app/dune:ro
-      - ./reports:/app/reports
-      - ./logs:/app/logs
-    network_mode: host  # Required for MCP internal endpoints
-    command: ["python", "-u", "src/orchestrator.py"]
-    restart: unless-stopped
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "100m"
-        max-file: "5"
-
-  watchtower:
-    build:
-      context: .
-      dockerfile: Dockerfile.watchtower
-    container_name: proxy-strike-watchtower
-    restart: unless-stopped
-    environment:
-      WATCHTOWER_INTERVAL: "60"
-      WATCHTOWER_ALERT_THRESHOLD: "1"
+      MCP_STEALTH_ENDPOINT: "http://127.0.0.1:8000/mcp"
       MCP_ETH_ENDPOINT: "internal://gradio-eth-mcp"
       MCP_BUCKET_ENDPOINT: "internal://bucket-store"
+      MCP_HYPERBROWSER_ENDPOINT: "internal://hyperbrowser"
+      MCP_WEB_FETCH_ENDPOINT: "internal://web-fetch"
     volumes:
+      - ./reports:/app/reports
       - ./logs:/app/logs
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-    network_mode: host
+    command: ["python", "-u", "-c", "from src.orchestrator import RedTeamOrchestrator; import asyncio; asyncio.run(RedTeamOrchestrator(None, None, None, None, None).run_recon())"]
