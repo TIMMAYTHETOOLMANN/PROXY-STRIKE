@@ -44,9 +44,4 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-    networks:
-      - proxy-strike-net
-
-networks:
-  proxy-strike-net:
-    driver: bridge
+    network_mode: host

@@ -45,9 +45,8 @@ class Fortifier:
         registered = []
         for proxy in proxy_addresses:
             # Encode addProxy(proxy, impl) – we'll use proxy itself as temporary impl; monitor will update
-            data = (
-                "0x9b1aee39"  # placeholder; actual encoding would be addProxy(address,address)
-            )
+            clean_proxy = proxy.lower().replace("0x", "").zfill(64)
+            data = "0x957fade5" + clean_proxy + clean_proxy
             try:
                 self.eth.send_transaction_ui(
                     to=monitor_address,
