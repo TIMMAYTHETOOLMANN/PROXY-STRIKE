@@ -155,31 +155,12 @@ class ProxyStrikeOrchestrator:
         
         fortifier = Fortifier(
             self.mcp_clients["ethereum"],
-            self.mcp_clients["bucket_store"],
-            self.config
+            self.mcp_clients["bucket_store"]
         )
 
-        # Deploy UpgradeMonitor
-        monitor_address = fortifier.deploy_upgrade_monitor(network="ethereum_mainnet")
-        print(f"[PHASE 5] UpgradeMonitor deployed at: {monitor_address}")
-
-        # Register all verified vulnerable proxies
-        proxy_addresses = [v["address"] for v in self.verified_vulnerable if v.get("isProxy")]
-        if proxy_addresses:
-            fortifier.register_proxies_for_monitoring(monitor_address, proxy_addresses)
-            print(f"[PHASE 5] Registered {len(proxy_addresses)} proxies for monitoring")
-
-        # Deploy wrappers for high-risk tokens
-        for target in self.verified_vulnerable[:5]:  # Top 5 most critical
-            wrapper = fortifier.deploy_tax_immune_wrapper(
-                target["address"],
-                network="ethereum_mainnet"
-            )
-            print(f"[PHASE 5] Wrapper deployed for {target['address']}: {wrapper}")
-
-        # Generate report
-        report = fortifier.generate_fortification_report()
-        print(f"[PHASE 5] Fortification report generated")
+        summary = fortifier.fortify_all(network="ethereum_mainnet")
+        print(f"[PHASE 5] Fortification complete: {summary}")
+        
         self.phases_completed.append("phase_five")
 
     def _generate_final_report(self):
