@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  proxy-strike:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: proxy-strike-redteam
+    environment:
+      - PYTHONUNBUFFERED=1
+      - MCP_SERVER_CONFIG=/app/config/mcp_servers.yaml
+      - REDTEAM_PROFILE=/app/config/redteam_profile.yaml
+    volumes:
+      - ./config:/app/config:ro
+      - ./contracts:/app/contracts:ro
+      - ./src:/app/src:ro
+      - ./dune:/app/dune:ro
+      - ./reports:/app/reports
+      - ./logs:/app/logs
+    network_mode: host  # Required for MCP internal endpoints
+    command: ["python", "-u", "src/orchestrator.py"]
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+
+  watchtower:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: proxy-strike-watchtower
+    environment:
+      - PYTHONUNBUFFERED=1
+      - WATCHTOWER_MODE=true
+    volumes:
+      - ./config:/app/config:ro
+      - ./src:/app/src:ro
+      - ./reports:/app/reports
+      - ./logs:/app/logs
+    network_mode: host
+    command: ["python", "-u", "src/watchtower.py"]
+    restart: unless-stopped
+    depends_on:
+      - proxy-strike

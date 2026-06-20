@@ -1,84 +1,97 @@
--- PROXY-STRIKE Phase 1: bulk proxy contracts with tax indicators
--- Purpose: surface likely taxed tokens deployed behind upgradeable proxies.
+-- PROXY-STRIKE: Bulk Detection of Upgradeable Proxy Tokens with Tax Capability
+-- Runs across Ethereum, Polygon, Arbitrum, Optimism, BSC
 
-WITH proxy_creations AS (
-    SELECT
-        c.block_time,
-        c.block_number,
-        c.tx_hash,
-        c.address AS proxy_contract,
-        c.creator AS deployer
-    FROM ethereum.contracts c
-    WHERE c.block_time >= now() - INTERVAL '365' day
-      AND lower(c.bytecode) LIKE '363d3d373d3d3d363d73%'
+WITH proxy_contracts AS (
+  SELECT 
+    address,
+    blockchain,
+    implementation_address
+  FROM (
+    -- Ethereum
+    SELECT address, 'ethereum' as blockchain, 
+           bytearray_substring(data, 13, 20) as implementation_address
+    FROM ethereum.storage_reads
+    WHERE slot = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc
+      AND bytearray_length(data) = 32
+    UNION ALL
+    -- Polygon
+    SELECT address, 'polygon' as blockchain,
+           bytearray_substring(data, 13, 20) as implementation_address
+    FROM polygon.storage_reads
+    WHERE slot = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc
+      AND bytearray_length(data) = 32
+    UNION ALL
+    -- Arbitrum
+    SELECT address, 'arbitrum' as blockchain,
+           bytearray_substring(data, 13, 20) as implementation_address
+    FROM arbitrum.storage_reads
+    WHERE slot = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc
+      AND bytearray_length(data) = 32
+    UNION ALL
+    -- Optimism
+    SELECT address, 'optimism' as blockchain,
+           bytearray_substring(data, 13, 20) as implementation_address
+    FROM optimism.storage_reads
+    WHERE slot = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc
+      AND bytearray_length(data) = 32
+    UNION ALL
+    -- BSC
+    SELECT address, 'bsc' as blockchain,
+           bytearray_substring(data, 13, 20) as implementation_address
+    FROM bnb.storage_reads
+    WHERE slot = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc
+      AND bytearray_length(data) = 32
+  )
 ),
-transfer_activity AS (
-    SELECT
-        t.contract_address,
-        COUNT(*) AS transfer_count,
-        approx_distinct(t."from") AS distinct_senders,
-        approx_distinct(t."to") AS distinct_receivers,
-        SUM(CASE WHEN t."from" = 0x0000000000000000000000000000000000000000 THEN 1 ELSE 0 END) AS mint_events
-    FROM erc20_ethereum.evt_transfer t
-    WHERE t.evt_block_time >= now() - INTERVAL '180' day
-    GROUP BY 1
-),
-trading_signals AS (
-    SELECT
-        tr.token_bought_address AS token_address,
-        COUNT(*) AS buy_swaps,
-        AVG(
-            CASE
-                WHEN tr.token_bought_amount > 0
-                  THEN CAST(tr.amount_usd AS DOUBLE) / NULLIF(CAST(tr.token_bought_amount AS DOUBLE), 0)
-                ELSE NULL
-            END
-        ) AS avg_buy_usd_per_unit
-    FROM dex.trades tr
-    WHERE tr.blockchain = 'ethereum'
-      AND tr.block_time >= now() - INTERVAL '90' day
-      AND tr.amount_usd > 100
-    GROUP BY 1
-),
-latest_token_metadata AS (
-    SELECT
-        tt.contract_address,
-        any_value(tt.symbol) AS symbol,
-        any_value(tt.name) AS name,
-        any_value(tt.decimals) AS decimals
-    FROM tokens.erc20 tt
-    GROUP BY 1
+
+tax_suspicious_bytecode AS (
+  -- Selectors that indicate tax capability
+  SELECT 
+    address,
+    blockchain,
+    bytecode
+  FROM (
+    SELECT address, 'ethereum' as blockchain, bytecode FROM ethereum.contracts
+    UNION ALL
+    SELECT address, 'polygon' as blockchain, bytecode FROM polygon.contracts
+    UNION ALL
+    SELECT address, 'arbitrum' as blockchain, bytecode FROM arbitrum.contracts
+    UNION ALL
+    SELECT address, 'optimism' as blockchain, bytecode FROM optimism.contracts
+    UNION ALL
+    SELECT address, 'bsc' as blockchain, bytecode FROM bnb.contracts
+  )
+  WHERE bytecode IS NOT NULL
+    AND (
+      -- setTaxPercent(uint256)
+      bytecode LIKE '%4aee6ffc%'
+      -- setFee(uint256)
+      OR bytecode LIKE '%69fe0e2d%'
+      -- enableTax()
+      OR bytecode LIKE '%2e1a7d4d%'
+      -- _beforeTokenTransfer
+      OR bytecode LIKE '%9d0f3c6a%'
+      -- _afterTokenTransfer
+      OR bytecode LIKE '%2d93e1e9%'
+      -- mint(address,uint256)
+      OR bytecode LIKE '%40c10f19%'
+    )
 )
-SELECT
-    p.block_time,
-    p.block_number,
-    p.proxy_contract,
-    p.deployer,
-    COALESCE(m.symbol, 'UNKNOWN') AS symbol,
-    COALESCE(m.name, 'Unknown Token') AS token_name,
-    COALESCE(a.transfer_count, 0) AS transfer_count,
-    COALESCE(a.distinct_senders, 0) AS distinct_senders,
-    COALESCE(a.distinct_receivers, 0) AS distinct_receivers,
-    COALESCE(a.mint_events, 0) AS mint_events,
-    COALESCE(s.buy_swaps, 0) AS buy_swaps,
-    COALESCE(s.avg_buy_usd_per_unit, 0) AS avg_buy_usd_per_unit,
-    CASE
-        WHEN COALESCE(a.transfer_count, 0) >= 250
-             AND COALESCE(a.distinct_senders, 0) >= 50
-             AND COALESCE(s.buy_swaps, 0) >= 20
-            THEN 'high_tax_signal'
-        WHEN COALESCE(a.transfer_count, 0) >= 100
-             AND COALESCE(s.buy_swaps, 0) >= 10
-            THEN 'medium_tax_signal'
-        ELSE 'low_tax_signal'
-    END AS tax_signal_bucket
-FROM proxy_creations p
-LEFT JOIN transfer_activity a
-    ON a.contract_address = p.proxy_contract
-LEFT JOIN trading_signals s
-    ON s.token_address = p.proxy_contract
-LEFT JOIN latest_token_metadata m
-    ON m.contract_address = p.proxy_contract
-WHERE COALESCE(a.transfer_count, 0) > 25
-ORDER BY tax_signal_bucket DESC, transfer_count DESC, p.block_time DESC
-LIMIT 500;
+
+SELECT DISTINCT
+  pc.address AS proxy_address,
+  pc.blockchain,
+  pc.implementation_address,
+  CASE 
+    WHEN tb.bytecode LIKE '%4aee6ffc%' THEN 'setTaxPercent'
+    WHEN tb.bytecode LIKE '%69fe0e2d%' THEN 'setFee'
+    WHEN tb.bytecode LIKE '%2e1a7d4d%' THEN 'enableTax'
+    WHEN tb.bytecode LIKE '%9d0f3c6a%' THEN 'beforeTokenTransferHook'
+    WHEN tb.bytecode LIKE '%2d93e1e9%' THEN 'afterTokenTransferHook'
+    WHEN tb.bytecode LIKE '%40c10f19%' THEN 'mintFunction'
+  END AS risk_indicator
+FROM proxy_contracts pc
+JOIN tax_suspicious_bytecode tb 
+  ON pc.implementation_address = tb.address 
+  AND pc.blockchain = tb.blockchain
+ORDER BY pc.blockchain, pc.address;
