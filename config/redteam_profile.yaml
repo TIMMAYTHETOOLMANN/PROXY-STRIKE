@@ -19,3 +19,12 @@ operation:
     scan_networks: ["ethereum_mainnet"]
     batch_size: 50
     gas_limit: 5000000
+  fortification:
+    enabled: true
+    mode: "production"
+    networks: ["ethereum_mainnet"]
+    auto_deploy_wrappers: true
+    auto_deploy_monitor: true
+    watchtower:
+      interval_seconds: 60
+      alert_threshold: 1

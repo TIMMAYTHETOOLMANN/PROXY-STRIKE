@@ -1,4 +1,4 @@
-version: '3.8'
+version: '3.9'
 
 services:
   proxy-strike:
@@ -29,18 +29,24 @@ services:
   watchtower:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.watchtower
     container_name: proxy-strike-watchtower
-    environment:
-      - PYTHONUNBUFFERED=1
-      - WATCHTOWER_MODE=true
-    volumes:
-      - ./config:/app/config:ro
-      - ./src:/app/src:ro
-      - ./reports:/app/reports
-      - ./logs:/app/logs
-    network_mode: host
-    command: ["python", "-u", "src/watchtower.py"]
     restart: unless-stopped
-    depends_on:
-      - proxy-strike
+    environment:
+      WATCHTOWER_INTERVAL: "60"
+      WATCHTOWER_ALERT_THRESHOLD: "1"
+      MCP_ETH_ENDPOINT: "internal://gradio-eth-mcp"
+      MCP_BUCKET_ENDPOINT: "internal://bucket-store"
+    volumes:
+      - ./logs:/app/logs
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - proxy-strike-net
+
+networks:
+  proxy-strike-net:
+    driver: bridge
