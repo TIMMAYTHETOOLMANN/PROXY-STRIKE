@@ -76,7 +76,7 @@ class ProxyStrikeOrchestrator:
             self.mcp_clients["web_fetch"],
             self.mcp_clients["bucket_store"]
         )
-        targets = await gatherer.gather_all()
+        targets = await gatherer.crawl()
         print(f"[PHASE 1] Gathered {len(targets)} potential targets")
         self.phases_completed.append("phase_one")
         self.targets = targets

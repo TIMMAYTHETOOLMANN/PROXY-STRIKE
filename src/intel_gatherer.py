@@ -15,12 +15,13 @@ class IntelGatherer:
         self.store = bucket_store
         self.targets = []
 
-    async def gather_all(self) -> List[Dict]:
+    async def crawl(self) -> List[Dict]:
         """Execute full intelligence gathering pipeline"""
         tasks = [
             self._scrape_token_sniffer(),
             self._scrape_bscscan_unverified(),
             self._scrape_etherscan_proxies(),
+            self._scrape_dune(),
             self._web_search_threat_intel(),
         ]
         results = await asyncio.gather(*tasks)
@@ -64,6 +65,28 @@ class IntelGatherer:
             ]
         except Exception as e:
             print(f"Token Sniffer scrape failed: {e}")
+            return []
+
+    async def _scrape_dune(self) -> List[Dict]:
+        """Pull proxy tax targets from Dune Analytics"""
+        try:
+            page = await self.hb.scrape_webpage(
+                url="https://dune.com/queries/proxy-tax-detection",
+                format="html"
+            )
+            addresses = self._extract_eth_addresses(page)
+            return [
+                {
+                    "address": addr,
+                    "chain": "unknown",
+                    "source": "dune",
+                    "risk_tags": ["proxy", "tax_suspicious"],
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+                for addr in addresses
+            ]
+        except Exception as e:
+            print(f"Dune scrape failed: {e}")
             return []
 
     async def _scrape_bscscan_unverified(self) -> List[Dict]:
@@ -122,7 +145,7 @@ class IntelGatherer:
         for query in queries:
             search_results = await self.web.web_search(query=query)
             for result in search_results[:5]:  # top 5 per query
-                page = await self.web.Web_Fetch_Webpage(url=result["url"])
+                page = await self.web.fetch_webpage(url=result["url"])
                 addresses = self._extract_eth_addresses(page)
                 for addr in addresses:
                     results.append({
