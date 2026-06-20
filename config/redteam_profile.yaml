@@ -1,19 +1,22 @@
+# Engagement parameters
 operation:
-  name: "proxy-strike-phase-1"
-  mode: "production"
+  name: "proxy-strike-full-engagement"
+  mode: "production"  # hard production, no simulation stubs
   target_chains: ["ethereum_mainnet", "bsc_mainnet", "polygon_mainnet"]
+  
+  # Mainnet recon is READ-ONLY by design
   mainnet_recon:
     enabled: true
     max_contracts_per_scan: 1000
     rate_limit_rps: 5
-    read_only: true
-    output_dir: "reports"
-    osint_sources:
-      - name: "tokensniffer"
-        url: "https://tokensniffer.com/tokens/scam"
-        chain: "ethereum_mainnet"
-      - name: "bscscan"
-        url: "https://bscscan.com/tokens?ps=100&p=1"
-        chain: "bsc_mainnet"
+    read_only: true  # enforced at orchestrator level
+
+  # Execution is gated to testnet/authorized environments
   controlled_execution:
-    enabled: false
+    enabled: true
+    allowed_networks: ["sepolia", "local_testnet"]
+    require_authorization: true
+    
+  # Reporting
+  report_output: "bucket://redteam-operations/reports/"
+  alert_channel: "bucket://redteam-operations/alerts/"

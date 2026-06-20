@@ -1,6 +1,26 @@
 chains:
-  ethereum_mainnet: { chain_id: 1, rpc: "https://eth.llamarpc.com", explorer: "https://etherscan.io" }
-  bsc_mainnet: { chain_id: 56, rpc: "https://bsc-dataseed.binance.org", explorer: "https://bscscan.com" }
-  polygon_mainnet: { chain_id: 137, rpc: "https://polygon-rpc.com", explorer: "https://polygonscan.com" }
-  sepolia: { chain_id: 11155111, rpc: "https://rpc.sepolia.org", explorer: "https://sepolia.etherscan.io" }
-  local_testnet: { chain_id: 31337, rpc: "http://127.0.0.1:8545", explorer: "local" }
+  ethereum_mainnet:
+    chain_id: 1
+    rpc_url: "https://eth.llamarpc.com"
+    explorer: "https://etherscan.io"
+    native_token: "ETH"
+  bsc_mainnet:
+    chain_id: 56
+    rpc_url: "https://bsc-dataseed.binance.org"
+    explorer: "https://bscscan.com"
+    native_token: "BNB"
+  polygon_mainnet:
+    chain_id: 137
+    rpc_url: "https://polygon-rpc.com"
+    explorer: "https://polygonscan.com"
+    native_token: "MATIC"
+  sepolia:
+    chain_id: 11155111
+    rpc_url: "https://rpc.sepolia.org"
+    explorer: "https://sepolia.etherscan.io"
+    native_token: "ETH"
+  local_testnet:
+    chain_id: 31337
+    rpc_url: "http://127.0.0.1:8545"
+    explorer: "local"
+    native_token: "ETH"
