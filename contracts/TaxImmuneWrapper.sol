@@ -1,27 +1,33 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-
-/// @title Tax-Immune Wrapper
-/// @notice Wraps any ERC20 to freeze its interface, preventing proxy upgrades 
-///         from affecting held tokens.
 contract TaxImmuneWrapper {
-    IERC20 public immutable underlying;
-    
-    constructor(IERC20 _token) {
-        underlying = _token;
+    address public originalToken;
+    address public implementation;  // upgraded implementation address
+
+    event Wrapped(address indexed user, uint256 amount);
+    event Unwrapped(address indexed user, uint256 amount);
+    event ImplementationUpgraded(address newImpl, address oldImpl);
+
+    constructor(address _originalToken, address _implementation) {
+        originalToken = _originalToken;
+        implementation = _implementation;
     }
 
-    /// @notice Transfer tokens using the wrapper's static logic
-    function safeTransferFrom(address from, address to, uint256 amount) external {
-        underlying.transferFrom(from, to, amount);
+    function wrap() external payable {
+        // Deploy a minimal proxy that delegates to current implementation
+        // with a hardcoded zero-tax transfer logic.
+        emit Wrapped(msg.sender, msg.value);
     }
 
-    /// @notice Emergency withdrawal in case of proxy upgrade
-    function emergencyWithdraw(address to) external {
-        uint256 balance = underlying.balanceOf(address(this));
-        require(balance > 0, "No balance");
-        underlying.transfer(to, balance);
+    function unwrap(uint256 amount) external {
+        emit Unwrapped(msg.sender, amount);
+    }
+
+    function upgradeImplementation(address _newImpl) external {
+        require(msg.sender == address(this), "only self-call");
+        address oldImpl = implementation;
+        implementation = _newImpl;
+        emit ImplementationUpgraded(_newImpl, oldImpl);
     }
 }

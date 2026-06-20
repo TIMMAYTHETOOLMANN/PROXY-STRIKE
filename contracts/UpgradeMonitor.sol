@@ -1,50 +1,43 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-/// @title Upgrade Monitor
-/// @notice Detects and logs when a proxy's implementation changes
 contract UpgradeMonitor {
-    event ImplementationChanged(
-        address indexed proxy,
-        address indexed oldImpl,
-        address indexed newImpl,
-        uint256 timestamp
-    );
-
-    mapping(address => address) public lastKnownImpl;
-
-    function register(address proxy) external {
-        address impl = _getImplementation(proxy);
-        require(impl != address(0), "Not a proxy");
-        lastKnownImpl[proxy] = impl;
+    struct MonitoredProxy {
+        address proxy;
+        address currentImpl;
+        uint256 lastBlock;
     }
 
-    function check(address proxy) external returns (bool changed) {
-        address currentImpl = _getImplementation(proxy);
-        address previousImpl = lastKnownImpl[proxy];
+    mapping(address => MonitoredProxy) public proxies;
+    address[] public proxyList;
 
-        if (currentImpl != previousImpl && previousImpl != address(0)) {
-            emit ImplementationChanged(proxy, previousImpl, currentImpl, block.timestamp);
-            lastKnownImpl[proxy] = currentImpl;
-            return true;
-        }
-        return false;
+    event ImplChanged(address indexed proxy, address oldImpl, address newImpl, uint256 timestamp);
+
+    function addProxy(address proxy, address impl) external {
+        require(proxies[proxy].proxy == address(0), "already monitored");
+        proxies[proxy] = MonitoredProxy(proxy, impl, block.number);
+        proxyList.push(proxy);
     }
 
-    function checkBatch(address[] calldata proxies) external returns (bool[] memory) {
-        bool[] memory results = new bool[](proxies.length);
-        for (uint256 i = 0; i < proxies.length; i++) {
-            results[i] = check(proxies[i]);
+    function checkAndUpdate(address proxy) external returns (bool changed) {
+        MonitoredProxy storage mp = proxies[proxy];
+        require(mp.proxy != address(0), "not monitored");
+        // simplistic staticcall to get implementation()
+        (bool ok, bytes memory data) = proxy.staticcall(
+            abi.encodeWithSignature("implementation()")
+        );
+        address currentImpl = ok && data.length >= 32 ? abi.decode(data, (address)) : address(0);
+        if (currentImpl != mp.currentImpl) {
+            emit ImplChanged(proxy, mp.currentImpl, currentImpl, block.timestamp);
+            mp.currentImpl = currentImpl;
+            mp.lastBlock = block.number;
+            changed = true;
         }
-        return results;
     }
 
-    function _getImplementation(address proxy) private view returns (address) {
-        bytes32 IMPL_SLOT = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
-        bytes32 impl;
-        assembly {
-            impl := sload(IMPL_SLOT)
+    function checkAll() external returns (uint256 count) {
+        for (uint256 i = 0; i < proxyList.length; i++) {
+            if (this.checkAndUpdate(proxyList[i])) count++;
         }
-        return address(uint160(uint256(impl)));
     }
 }

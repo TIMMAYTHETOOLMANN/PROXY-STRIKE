@@ -1,57 +1,68 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+contract TaxableERC20 {
+    mapping(address => uint256) public balanceOf;
+    mapping(address => mapping(address => uint256)) public allowance;
+    uint256 public totalSupply;
+    string public name = "TaxableToken";
+    string public symbol = "TAX";
+    uint8 public decimals = 18;
+    address public owner;
 
-/// @title Malicious Taxable ERC20 – For Controlled Red Team Training Only
-/// @notice This contract is used ONLY in isolated test environments 
-///         to demonstrate the OMENX attack vector.
-contract TaxableERC20 is ERC20, Ownable {
-    address public feeReceiver;
-    uint256 public taxPercent = 10; // 10% default
-    bool public taxEnabled = true;
+    uint256 public taxPercent = 5;  // 5% tax
+    address public taxCollector;
 
-    mapping(address => bool) public whitelist;
+    event Transfer(address indexed from, address indexed to, uint256 value);
+    event TaxCollected(address indexed from, uint256 taxAmount);
+    event TaxPercentUpdated(uint256 newPercent);
 
-    constructor(
-        string memory name,
-        string memory symbol,
-        address _feeReceiver
-    ) ERC20(name, symbol) Ownable(msg.sender) {
-        feeReceiver = _feeReceiver;
-        _mint(msg.sender, 1000000 * 10**decimals());
+    modifier onlyOwner() { require(msg.sender == owner, "not owner"); _; }
+
+    constructor(address _taxCollector) {
+        owner = msg.sender;
+        taxCollector = _taxCollector;
+        totalSupply = 1_000_000 * 1e18;
+        balanceOf[msg.sender] = totalSupply;
     }
 
-    function setTaxPercent(uint256 _percent) external onlyOwner {
-        require(_percent <= 100, "Tax cannot exceed 100%");
-        taxPercent = _percent;
+    function transfer(address to, uint256 amount) public returns (bool) {
+        _beforeTokenTransfer(msg.sender, to, amount);
+        balanceOf[msg.sender] -= amount;
+        balanceOf[to] += amount;
+        emit Transfer(msg.sender, to, amount);
+        return true;
     }
 
-    function setFeeReceiver(address _receiver) external onlyOwner {
-        feeReceiver = _receiver;
+    function approve(address spender, uint256 amount) public returns (bool) {
+        allowance[msg.sender][spender] = amount;
+        return true;
     }
 
-    function toggleTax() external onlyOwner {
-        taxEnabled = !taxEnabled;
+    function transferFrom(address from, address to, uint256 amount) public returns (bool) {
+        require(allowance[from][msg.sender] >= amount, "insufficient allowance");
+        _beforeTokenTransfer(from, to, amount);
+        allowance[from][msg.sender] -= amount;
+        balanceOf[from] -= amount;
+        balanceOf[to] += amount;
+        emit Transfer(from, to, amount);
+        return true;
     }
 
-    function addToWhitelist(address account) external onlyOwner {
-        whitelist[account] = true;
+    function setTaxPercent(uint256 _newPercent) external onlyOwner {
+        taxPercent = _newPercent;
+        emit TaxPercentUpdated(_newPercent);
     }
 
-    function _update(
-        address from,
-        address to,
-        uint256 value
-    ) internal override {
-        if (taxEnabled && !whitelist[from] && !whitelist[to] && from != address(0)) {
-            uint256 fee = (value * taxPercent) / 100;
-            if (fee > 0) {
-                super._update(from, feeReceiver, fee);
-                value -= fee;
+    function _beforeTokenTransfer(address from, address to, uint256 amount) internal {
+        if (from != address(0) && to != address(0)) {
+            uint256 tax = (amount * taxPercent) / 100;
+            if (tax > 0) {
+                balanceOf[from] -= tax;
+                balanceOf[taxCollector] += tax;
+                emit TaxCollected(from, tax);
+                emit Transfer(from, taxCollector, tax);
             }
         }
-        super._update(from, to, value);
     }
 }

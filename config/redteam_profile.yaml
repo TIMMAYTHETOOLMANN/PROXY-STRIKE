@@ -8,7 +8,12 @@ operation:
     rate_limit_rps: 5
     read_only: true
   controlled_execution:
-    enabled: false
+    enabled: true
+    testnet_only: true
+    networks: ["sepolia", "local_testnet"]
+    exploit_chain: "omenx_simulation"
+    max_simulation_calls: 10
+    fortification_mode: "auto"
   scanner:
     deploy_network: "ethereum_mainnet"
     scan_networks: ["ethereum_mainnet"]
