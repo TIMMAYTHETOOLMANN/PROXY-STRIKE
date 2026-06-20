@@ -13,6 +13,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 ADDRESS_RE = re.compile(r"0x[a-fA-F0-9]{40}")
+DEFAULT_OSINT_SOURCES = (
+    {"name": "tokensniffer", "url": "https://tokensniffer.com/tokens/scam", "chain": "ethereum_mainnet"},
+    {"name": "bscscan", "url": "https://bscscan.com/tokens?ps=100&p=1", "chain": "bsc_mainnet"},
+)
 
 
 @dataclass(frozen=True)
@@ -69,6 +73,8 @@ class IntelGatherer:
         self._max_contracts = int(recon.get("max_contracts_per_scan", 1000))
         self._recon_enabled = bool(recon.get("enabled", True))
         self._read_only = bool(recon.get("read_only", True))
+        self._output_dir = Path(recon.get("output_dir", "reports"))
+        self._osint_sources = recon.get("osint_sources", list(DEFAULT_OSINT_SOURCES))
         self._limiter = _RateLimiter(float(recon.get("rate_limit_rps", 5)))
 
         controlled_execution = operation.get("controlled_execution", {}).get("enabled", False)
@@ -140,21 +146,21 @@ class IntelGatherer:
         return [*osint_targets, *live_targets]
 
     async def _gather_osint(self) -> List[IntelTarget]:
-        urls = [
-            ("tokensniffer", "https://tokensniffer.com/tokens/scam"),
-            ("bscscan", "https://bscscan.com/tokens?ps=100&p=1"),
-        ]
-
         collected: List[IntelTarget] = []
-        for source, url in urls:
+        for source in self._osint_sources:
+            name = source.get("name")
+            url = source.get("url")
+            chain = source.get("chain", "ethereum_mainnet")
+            if not name or not url:
+                continue
             await self._limiter.wait()
             text = await self._fetch_text(url)
             for address in self._extract_addresses(text):
                 collected.append(
                     IntelTarget(
                         contract_address=address,
-                        chain="bsc_mainnet" if source == "bscscan" else "ethereum_mainnet",
-                        source=f"osint:{source}",
+                        chain=chain,
+                        source=f"osint:{name}",
                         confidence="medium",
                     )
                 )
@@ -264,6 +270,5 @@ class IntelGatherer:
                     await result
                 return
 
-        reports_dir = Path("reports")
-        reports_dir.mkdir(parents=True, exist_ok=True)
-        (reports_dir / Path(key).name).write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        self._output_dir.mkdir(parents=True, exist_ok=True)
+        (self._output_dir / Path(key).name).write_text(json.dumps(payload, indent=2), encoding="utf-8")

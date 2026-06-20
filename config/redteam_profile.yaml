@@ -7,5 +7,13 @@ operation:
     max_contracts_per_scan: 1000
     rate_limit_rps: 5
     read_only: true
+    output_dir: "reports"
+    osint_sources:
+      - name: "tokensniffer"
+        url: "https://tokensniffer.com/tokens/scam"
+        chain: "ethereum_mainnet"
+      - name: "bscscan"
+        url: "https://bscscan.com/tokens?ps=100&p=1"
+        chain: "bsc_mainnet"
   controlled_execution:
     enabled: false
