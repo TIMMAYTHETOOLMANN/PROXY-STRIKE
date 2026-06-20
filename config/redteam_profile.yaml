@@ -1,0 +1,30 @@
+operation:
+  name: "proxy-strike-phase-1"
+  mode: "production"
+  target_chains: ["ethereum_mainnet", "bsc_mainnet", "polygon_mainnet"]
+  mainnet_recon:
+    enabled: true
+    max_contracts_per_scan: 1000
+    rate_limit_rps: 5
+    read_only: true
+  controlled_execution:
+    enabled: true
+    testnet_only: true
+    networks: ["sepolia", "local_testnet"]
+    exploit_chain: "omenx_simulation"
+    max_simulation_calls: 10
+    fortification_mode: "auto"
+  scanner:
+    deploy_network: "ethereum_mainnet"
+    scan_networks: ["ethereum_mainnet"]
+    batch_size: 50
+    gas_limit: 5000000
+  fortification:
+    enabled: true
+    mode: "production"
+    networks: ["ethereum_mainnet"]
+    auto_deploy_wrappers: true
+    auto_deploy_monitor: true
+    watchtower:
+      interval_seconds: 60
+      alert_threshold: 1

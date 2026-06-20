@@ -1,0 +1,19 @@
+version: "3.9"
+
+services:
+  recon:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: proxy-strike-recon
+    network_mode: host
+    environment:
+      MCP_STEALTH_ENDPOINT: "http://127.0.0.1:8000/mcp"
+      MCP_ETH_ENDPOINT: "internal://gradio-eth-mcp"
+      MCP_BUCKET_ENDPOINT: "internal://bucket-store"
+      MCP_HYPERBROWSER_ENDPOINT: "internal://hyperbrowser"
+      MCP_WEB_FETCH_ENDPOINT: "internal://web-fetch"
+    volumes:
+      - ./reports:/app/reports
+      - ./logs:/app/logs
+    command: ["python", "-u", "-c", "from src.orchestrator import RedTeamOrchestrator; import asyncio; asyncio.run(RedTeamOrchestrator(None, None, None, None, None).run_recon())"]
