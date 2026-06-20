@@ -9,3 +9,8 @@ operation:
     read_only: true
   controlled_execution:
     enabled: false
+  scanner:
+    deploy_network: "ethereum_mainnet"
+    scan_networks: ["ethereum_mainnet"]
+    batch_size: 50
+    gas_limit: 5000000

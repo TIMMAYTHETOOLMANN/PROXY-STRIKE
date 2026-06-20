@@ -11,3 +11,12 @@ servers:
     type: internal_api
     endpoint: "internal://bucket-store"
     bucket: "redteam-operations"
+  ethereum_mcp:
+    type: gradio_rpc
+    endpoint: "internal://gradio-eth-mcp"
+    timeout_ms: 30000
+    default_network: "ethereum_mainnet"
+    networks:
+      mainnet:       { rpc: "https://eth.llamarpc.com",              chain_id: 1 }
+      sepolia:       { rpc: "https://rpc.sepolia.org",               chain_id: 11155111 }
+      local_testnet: { rpc: "http://127.0.0.1:8545",                chain_id: 31337 }
