@@ -1,0 +1,13 @@
+servers:
+  hyperbrowser_mcp:
+    type: internal_api
+    endpoint: "internal://hyperbrowser"
+    timeout_ms: 120000
+  web_fetch_mcp:
+    type: internal_api
+    endpoint: "internal://web-fetch"
+    timeout_ms: 30000
+  bucket_store_mcp:
+    type: internal_api
+    endpoint: "internal://bucket-store"
+    bucket: "redteam-operations"
